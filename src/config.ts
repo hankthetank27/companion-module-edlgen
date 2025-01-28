@@ -1,4 +1,4 @@
-import { Regex, type SomeCompanionConfigField } from '@companion-module/base'
+import { type SomeCompanionConfigField } from '@companion-module/base'
 
 export interface ModuleConfig {
 	host: string
@@ -10,18 +10,18 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 		{
 			type: 'textinput',
 			id: 'host',
-			label: 'Target IP',
+			label: 'Base URL',
 			width: 8,
-			regex: Regex.IP,
+			default: 'http://127.0.0.1',
 		},
 		{
 			type: 'number',
 			id: 'port',
 			label: 'Target Port',
 			width: 4,
-			min: 1,
-			max: 65535,
-			default: 8000,
+			min: 3000,
+			max: 9999,
+			default: 7890,
 		},
 	]
 }

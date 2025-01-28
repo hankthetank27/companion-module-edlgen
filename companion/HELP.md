@@ -1,3 +1,3 @@
-## Your module
+## EDLgen
 
-Write some help for your users here!
+email hjackson277@gmail.com

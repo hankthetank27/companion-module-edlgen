@@ -1,7 +1,29 @@
-import { Regex, CompanionOptionValues, InputValue, SomeCompanionActionInputField } from '@companion-module/base'
+import {
+	Regex,
+	CompanionOptionValues,
+	InputValue,
+	SomeCompanionActionInputField,
+	InstanceStatus,
+} from '@companion-module/base'
 import type { ModuleInstance } from './main.js'
 import { got, Response } from 'got'
-import { catchErrToString, isError, Result } from './utils.js'
+import { catchErrToString, isModuleError, Result } from './utils.js'
+
+const PROPS = {
+	EDIT_TYPE: 'edit_type',
+	SOURCE_TAPE: 'source_tape',
+	WIPE_NUM: 'wipe_num',
+	EDIT_DURATION_FRAMES: 'edit_duration_frames',
+	AV_CHANNELS: 'av_channels',
+	AUDIO: 'audio',
+	VIDEO: 'video',
+} as const
+
+const EDIT_TYPES = {
+	CUT: 'cut',
+	WIPE: 'wipe',
+	DISSOVLE: 'dissolve',
+} as const
 
 export function UpdateActions(self: ModuleInstance): void {
 	self.setActionDefinitions({
@@ -41,7 +63,7 @@ export function UpdateActions(self: ModuleInstance): void {
 			description: 'Pre-select source tape for next Start, Log Or End actions.',
 			options: [
 				{
-					id: 'source_tape',
+					id: PROPS.SOURCE_TAPE,
 					type: 'textinput',
 					label: 'Source Tape',
 					regex: Regex.SOMETHING,
@@ -61,36 +83,42 @@ export function UpdateActions(self: ModuleInstance): void {
 function editOptions(): SomeCompanionActionInputField[] {
 	return [
 		{
-			id: 'edit_type',
+			id: PROPS.EDIT_TYPE,
 			type: 'dropdown',
 			label: 'Edit type',
 			choices: [
-				{ id: 'cut', label: 'Cut' },
-				{ id: 'wipe', label: 'Wipe' },
-				{ id: 'dissolve', label: 'Dissolve' },
+				{ id: EDIT_TYPES.CUT, label: 'Cut' },
+				{ id: EDIT_TYPES.WIPE, label: 'Wipe' },
+				{ id: EDIT_TYPES.DISSOVLE, label: 'Dissolve' },
 			],
-			default: 'cut',
+			default: EDIT_TYPES.CUT,
 			tooltip: 'Specifies what the edit type should be.',
 		},
 		{
-			id: 'edit_duration_frames',
+			id: PROPS.EDIT_DURATION_FRAMES,
 			type: 'number',
 			label: 'Edit Duration',
 			default: 0,
 			min: 0,
 			max: 999,
-			isVisible: (options): boolean => options.edit_type === 'wipe' || options.edit_type === 'dissolve',
+			isVisible: (options): boolean => {
+				// We cant use PROPS or EDIT_TYPES here as isVisible does not bring in definitions from outer scope
+				return options.edit_type === 'wipe' || options.edit_type === 'dissolve'
+			},
 			required: true,
 			tooltip: 'Specifies the length of the edit in frames.',
 		},
 		{
-			id: 'wipe_num',
+			id: PROPS.WIPE_NUM,
 			type: 'number',
 			label: 'Wipe Number',
 			default: 1,
 			min: 1,
 			max: 999,
-			isVisible: (options): boolean => options.edit_type === 'wipe',
+			isVisible: (options): boolean => {
+				// We cant use PROPS or EDIT_TYPES here as isVisible does not bring in definitions from outer scope
+				return options.edit_type === 'wipe'
+			},
 			tooltip: 'Optionally specifies which wipe should be used by the editing system.',
 		},
 		{
@@ -101,7 +129,7 @@ function editOptions(): SomeCompanionActionInputField[] {
 			tooltip: 'Specifies if the source tape for the edit will be preselect via the "Select Source" action.',
 		},
 		{
-			id: 'source_tape',
+			id: PROPS.SOURCE_TAPE,
 			type: 'textinput',
 			label: 'Source Tape',
 			regex: Regex.SOMETHING,
@@ -111,18 +139,18 @@ function editOptions(): SomeCompanionActionInputField[] {
 				'Specifies the name of the of the tape the edit is being made for. This typically would be the name of the file the source of the video will correspond with in your editing software. The file extension might be needed in such a case depending on the editing software you use.',
 		},
 		{
-			id: 'video',
+			id: PROPS.VIDEO,
 			type: 'checkbox',
 			label: 'Contains Video',
 			default: true,
 			tooltip: 'Specifies if the channel contains video.',
 		},
 		{
-			id: 'audio',
+			id: PROPS.AUDIO,
 			type: 'number',
 			label: 'Audio Channels',
 			default: 2,
-			min: 1,
+			min: 0,
 			max: 999,
 			required: true,
 			tooltip: 'Specifies the number of audio channels',
@@ -131,40 +159,54 @@ function editOptions(): SomeCompanionActionInputField[] {
 }
 
 function handleResponse(self: ModuleInstance, actionId: string, res: Result<Response>) {
-	if (isError(res)) {
-		self.log('error', res.errMessage)
+	if (isModuleError(res)) {
+		self.log('error', res.moduleErrMessage)
+		self.updateStatus(InstanceStatus.UnknownError, res.moduleErrMessage)
 	} else if (!res.ok) {
-		self.log('error', `EDLgen ${actionId.toUpperCase()} unsucessful: ${res.statusCode} -- ${res.body}`)
+		const err = `${actionId.toUpperCase()} unsucessful: ${res.statusCode} -- ${res.body}`
+		self.log('error', err)
+		self.updateStatus(InstanceStatus.UnknownError, err)
 	} else {
-		self.log('info', `EDLgen ${actionId.toUpperCase()} successful`)
+		self.log('info', `${actionId.toUpperCase()} successful`)
+		self.updateStatus(InstanceStatus.Ok)
+	}
+}
+
+function validateField(value: InputValue | undefined, key: string, actionId: string) {
+	if (value === undefined) {
+		throw new Error(`Invalid ${actionId.toUpperCase()}: ${key} is undefined`)
+	} else {
+		return value
 	}
 }
 
 interface AvChannels {
-	video: InputValue
-	audio: InputValue
+	[PROPS.VIDEO]: InputValue
+	[PROPS.AUDIO]: InputValue
 }
 
 interface EditBody {
-	edit_type: InputValue
-	source_tape?: InputValue
-	wipe_num?: InputValue
-	edit_duration_frames?: InputValue
-	av_channels: AvChannels
+	[PROPS.EDIT_TYPE]: InputValue
+	[PROPS.SOURCE_TAPE]?: InputValue
+	[PROPS.WIPE_NUM]?: InputValue
+	[PROPS.EDIT_DURATION_FRAMES]?: InputValue
+	[PROPS.AV_CHANNELS]: AvChannels
 }
 
 async function triggerEdit(
 	self: ModuleInstance,
 	actionId: string,
-	{ edit_type, video, audio, wipe_num, edit_duration_frames, source_tape }: CompanionOptionValues,
+	options: CompanionOptionValues,
 ): Promise<Result<Response<string>>> {
+	self.log('info', JSON.stringify(options))
+	const { edit_type, video, audio, wipe_num, edit_duration_frames, source_tape } = options
 	try {
-		if (!edit_type || !video || !audio) {
-			throw new Error('Invalid edit')
-		}
 		const body: EditBody = {
-			edit_type,
-			av_channels: { video, audio },
+			edit_type: validateField(edit_type, PROPS.EDIT_TYPE, actionId),
+			av_channels: {
+				video: validateField(video, PROPS.VIDEO, actionId),
+				audio: validateField(audio, PROPS.AUDIO, actionId),
+			},
 		}
 		if (source_tape !== undefined) {
 			body.source_tape = source_tape
@@ -178,7 +220,7 @@ async function triggerEdit(
 		const url = `http://${self.config.host}:${self.config.port}/${actionId}`
 		return await got.post(url, { json: body })
 	} catch (e) {
-		return { errMessage: `EDLgen ${actionId.toUpperCase()} Request aborted: (${catchErrToString(e)})` }
+		return { moduleErrMessage: `${actionId.toUpperCase()} Request failed: (${catchErrToString(e)})` }
 	}
 }
 
@@ -188,13 +230,11 @@ async function triggerSelectSrc(
 	{ source_tape }: CompanionOptionValues,
 ): Promise<Result<Response<string>>> {
 	try {
-		if (!source_tape) {
-			throw new Error('source_tape is undefined')
-		}
+		const body = { source_tape: validateField(source_tape, PROPS.SOURCE_TAPE, actionId) }
 		const url = `http://${self.config.host}:${self.config.port}/select-src`
-		return await got.post(url, { json: { source_tape } })
+		return await got.post(url, { json: body })
 	} catch (e: unknown) {
-		return { errMessage: `HTTP ${actionId.toUpperCase()} Request aborted: (${catchErrToString(e)})` }
+		return { moduleErrMessage: `${actionId.toUpperCase()} Request failed: (${catchErrToString(e)})` }
 	}
 }
 

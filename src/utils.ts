@@ -1,11 +1,11 @@
-export type Result<T> = T | Error
+export type Result<T> = T | ModuleError
 
-interface Error {
-	errMessage: string
+interface ModuleError {
+	moduleErrMessage: string
 }
 
-export function isError(value: unknown): value is Error {
-	return (value as Error).errMessage !== undefined
+export function isModuleError(value: unknown): value is ModuleError {
+	return typeof value === 'object' && value !== null && (value as ModuleError).moduleErrMessage !== undefined
 }
 
 export function catchErrToString(error: unknown): string {
@@ -13,6 +13,8 @@ export function catchErrToString(error: unknown): string {
 		return error
 	} else if (error instanceof Error) {
 		return error.message
+	} else if (isModuleError(error)) {
+		return error.moduleErrMessage
 	} else {
 		return 'unknown error'
 	}

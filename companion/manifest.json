@@ -16,11 +16,11 @@
 	"runtime": {
 		"type": "node22",
 		"api": "nodejs-ipc",
-		"apiVersion": "0.0.1",
+		"apiVersion": "0.0.0",
 		"entrypoint": "../dist/main.js"
 	},
 	"legacyIds": [],
-	"manufacturer": "n/a",
+	"manufacturer": "Hank Jackson",
 	"products": ["EDLgen"],
-	"keywords": []
+	"keywords": ["EDL", "SMPTE", "LTC"]
 }

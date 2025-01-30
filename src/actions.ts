@@ -28,7 +28,7 @@ const EDIT_TYPES = {
 export function UpdateActions(self: ModuleInstance): void {
 	self.setActionDefinitions({
 		start: {
-			name: '  Start',
+			name: 'Edit - Start',
 			description:
 				"Build EDL starting from the source's current timecode if available, or wait until a signal is detected.",
 			options: editOptions(),
@@ -40,7 +40,7 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 
 		log: {
-			name: '  Log',
+			name: 'Edit - Log',
 			description: "Log edit to EDL at the source's current timecode.",
 			options: editOptions(),
 			callback: async (action) => {
@@ -51,8 +51,8 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 
 		end: {
-			name: '  Stop',
-			description: 'Stop recording to EDL, logging final edit.',
+			name: 'Edit - Stop',
+			description: 'Stop writing to EDL, logging final edit.',
 			options: editOptions(),
 			callback: async (action) => {
 				const { actionId, options } = action
@@ -62,8 +62,8 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 
 		selectSrc: {
-			name: ' Select Source',
-			description: 'Pre-select source tape for next Start, Log Or End actions.',
+			name: 'Edit - Select Source',
+			description: "Pre-select source tape for next 'Start', 'Log' or 'End' actions.",
 			options: [
 				{
 					id: PROPS.SOURCE_TAPE,
@@ -83,7 +83,7 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 
 		resetStub: {
-			name: 'Reset Request Status Feedbacks',
+			name: 'Feedback - Reset Request Status Feedbacks',
 			description:
 				"Allows a button to reset the 'Request Status' feedback. This action makes no request to EDLgen itself.",
 			options: [],

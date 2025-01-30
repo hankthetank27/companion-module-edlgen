@@ -83,9 +83,9 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 
 		resetStub: {
-			name: 'Feedback - Reset Request Status Feedbacks',
+			name: 'Feedback Trigger - Reset Request Status Feedbacks',
 			description:
-				"Allows a button to reset the 'Request Status' feedback. This action makes no request to EDLgen itself.",
+				"Reset the 'Request Status' feedbacks assigned to other buttons which have the 'Reset On Next EDLgen Action' option enabled. This action makes no request to EDLgen itself.",
 			options: [],
 			callback: async ({ controlId }) => {
 				self.controlLastCalled = controlId

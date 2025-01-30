@@ -1,15 +1,18 @@
 import { InstanceBase, runEntrypoint, InstanceStatus, SomeCompanionConfigField } from '@companion-module/base'
 import { GetConfigFields, type ModuleConfig } from './config.js'
-import { UpdateVariableDefinitions } from './variables.js'
 import { UpgradeScripts } from './upgrades.js'
 import { UpdateActions } from './actions.js'
 import { UpdateFeedbacks } from './feedbacks.js'
 
 export class ModuleInstance extends InstanceBase<ModuleConfig> {
 	config!: ModuleConfig // Setup in init()
+	controlReqStatuses!: Record<string, 'ok' | 'error'>
+	controlLastCalled!: string | null
 
 	constructor(internal: unknown) {
 		super(internal)
+		this.controlReqStatuses = {}
+		this.controlLastCalled = null
 	}
 
 	async init(config: ModuleConfig): Promise<void> {
@@ -19,7 +22,6 @@ export class ModuleInstance extends InstanceBase<ModuleConfig> {
 
 		this.updateActions() // export actions
 		this.updateFeedbacks() // export feedbacks
-		this.updateVariableDefinitions() // export variable definitions
 	}
 	// When module gets deleted
 	async destroy(): Promise<void> {
@@ -43,8 +45,10 @@ export class ModuleInstance extends InstanceBase<ModuleConfig> {
 		UpdateFeedbacks(this)
 	}
 
-	updateVariableDefinitions(): void {
-		UpdateVariableDefinitions(this)
+	updateControlReqStatus(controlId: string, status: 'ok' | 'error'): void {
+		this.controlReqStatuses[controlId] = status
+		this.controlLastCalled = controlId
+		this.checkFeedbacks('req_state')
 	}
 }
 

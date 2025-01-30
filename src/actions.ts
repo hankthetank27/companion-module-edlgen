@@ -3,7 +3,7 @@ import {
 	CompanionOptionValues,
 	InputValue,
 	SomeCompanionActionInputField,
-	InstanceStatus,
+	CompanionActionEvent,
 } from '@companion-module/base'
 import type { ModuleInstance } from './main.js'
 import { got, Response } from 'got'
@@ -28,38 +28,41 @@ const EDIT_TYPES = {
 export function UpdateActions(self: ModuleInstance): void {
 	self.setActionDefinitions({
 		start: {
-			name: 'Start',
+			name: '  Start',
 			description:
 				"Build EDL starting from the source's current timecode if available, or wait until a signal is detected.",
 			options: editOptions(),
-			callback: async ({ actionId, options }) => {
+			callback: async (action) => {
+				const { actionId, options } = action
 				const res = await triggerEdit(self, actionId, options)
-				handleResponse(self, actionId, res)
+				handleResponse(self, action, res)
 			},
 		},
 
 		log: {
-			name: 'Log',
+			name: '  Log',
 			description: "Log edit to EDL at the source's current timecode.",
 			options: editOptions(),
-			callback: async ({ actionId, options }) => {
+			callback: async (action) => {
+				const { actionId, options } = action
 				const res = await triggerEdit(self, actionId, options)
-				handleResponse(self, actionId, res)
+				handleResponse(self, action, res)
 			},
 		},
 
 		end: {
-			name: 'Stop',
+			name: '  Stop',
 			description: 'Stop recording to EDL, logging final edit.',
 			options: editOptions(),
-			callback: async ({ actionId, options }) => {
+			callback: async (action) => {
+				const { actionId, options } = action
 				const res = await triggerEdit(self, actionId, options)
-				handleResponse(self, actionId, res)
+				handleResponse(self, action, res)
 			},
 		},
 
 		selectSrc: {
-			name: 'Select Source',
+			name: ' Select Source',
 			description: 'Pre-select source tape for next Start, Log Or End actions.',
 			options: [
 				{
@@ -72,9 +75,21 @@ export function UpdateActions(self: ModuleInstance): void {
 					required: true,
 				},
 			],
-			callback: async ({ actionId, options }) => {
+			callback: async (action) => {
+				const { actionId, options } = action
 				const res = await triggerSelectSrc(self, actionId, options)
-				handleResponse(self, actionId, res)
+				handleResponse(self, action, res)
+			},
+		},
+
+		resetStub: {
+			name: 'Reset Request Status Feedbacks',
+			description:
+				"Allows a button to reset the 'Request Status' feedback. This action makes no request to EDLgen itself.",
+			options: [],
+			callback: async ({ controlId }) => {
+				self.controlLastCalled = controlId
+				self.checkFeedbacks('req_state')
 			},
 		},
 	})
@@ -158,17 +173,17 @@ function editOptions(): SomeCompanionActionInputField[] {
 	]
 }
 
-function handleResponse(self: ModuleInstance, actionId: string, res: Result<Response>) {
+function handleResponse(self: ModuleInstance, action: CompanionActionEvent, res: Result<Response>) {
+	const { actionId, controlId } = action
 	if (isModuleError(res)) {
 		self.log('error', res.moduleErrMessage)
-		self.updateStatus(InstanceStatus.UnknownError, res.moduleErrMessage)
+		self.updateControlReqStatus(controlId, 'error')
 	} else if (!res.ok) {
-		const err = `${actionId.toUpperCase()} unsucessful: ${res.statusCode} -- ${res.body}`
-		self.log('error', err)
-		self.updateStatus(InstanceStatus.UnknownError, err)
+		self.log('error', `${actionId.toUpperCase()} unsucessful: ${res.statusCode} -- ${res.body}`)
+		self.updateControlReqStatus(controlId, 'error')
 	} else {
 		self.log('info', `${actionId.toUpperCase()} successful`)
-		self.updateStatus(InstanceStatus.Ok)
+		self.updateControlReqStatus(controlId, 'ok')
 	}
 }
 
@@ -196,10 +211,8 @@ interface EditBody {
 async function triggerEdit(
 	self: ModuleInstance,
 	actionId: string,
-	options: CompanionOptionValues,
+	{ edit_type, video, audio, wipe_num, edit_duration_frames, source_tape }: CompanionOptionValues,
 ): Promise<Result<Response<string>>> {
-	self.log('info', JSON.stringify(options))
-	const { edit_type, video, audio, wipe_num, edit_duration_frames, source_tape } = options
 	try {
 		const body: EditBody = {
 			edit_type: validateField(edit_type, PROPS.EDIT_TYPE, actionId),
